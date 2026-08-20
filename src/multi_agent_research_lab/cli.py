@@ -43,14 +43,36 @@ def baseline(
 ) -> None:
     """Run a minimal single-agent baseline placeholder."""
 
+    from multi_agent_research_lab.services.search_client import SearchClient
+    from multi_agent_research_lab.services.llm_client import LLMClient
+    import time
+    
     _init()
     request = _parse_query(query)
     state = ResearchState(request=request)
-    state.final_answer = (
-        "Baseline skeleton response. TODO(student): replace this with a real single-agent "
-        "implementation and record latency/cost/quality metrics."
-    )
-    console.print(Panel.fit(state.final_answer, title="Single-Agent Baseline"))
+    
+    search_client = SearchClient()
+    llm_client = LLMClient()
+    
+    start_time = time.time()
+    
+    try:
+        # Search
+        sources = search_client.search(request.query, max_results=request.max_sources)
+        state.sources = sources
+        sources_text = "\n".join([f"[{i+1}] {s.title} - {s.url}" for i, s in enumerate(sources)])
+        
+        # LLM
+        system_prompt = f"You are a helpful assistant. Answer the user's query based on the following sources. Include citations [1], [2]. Audience: {request.audience}"
+        user_prompt = f"Query: {request.query}\n\nSources:\n{sources_text}"
+        
+        response = llm_client.complete(system_prompt, user_prompt)
+        state.final_answer = response.content
+        latency = time.time() - start_time
+        
+        console.print(Panel.fit(state.final_answer, title=f"Single-Agent Baseline (Latency: {latency:.2f}s, Cost: ${response.cost_usd or 0:.4f})"))
+    except Exception as exc:
+        console.print(Panel.fit(str(exc), title="Error", style="red"))
 
 
 @app.command("multi-agent")
